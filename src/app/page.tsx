@@ -219,8 +219,8 @@ export default function HomePage() {
           </span>
           <span>Knowledge Base</span>
         </div>
-        <h1 className="text-3xl md:text-4xl font-bold mb-2">知識庫總覽</h1>
-        <p className="text-muted-foreground">個人知識管理系統，語義搜尋與分類整理</p>
+        <h1 className="text-3xl md:text-4xl font-bold mb-2">🧠 知識庫總覽</h1>
+        <p className="text-muted-foreground">個人知識管理系統，支援語義搜尋與智慧分類</p>
       </div>
 
       {/* Main Search - Centered */}
