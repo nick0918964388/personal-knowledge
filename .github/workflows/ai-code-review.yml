@@ -10,7 +10,6 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-      models: read
     
     steps:
       - name: Checkout
@@ -18,46 +17,30 @@ jobs:
         with:
           fetch-depth: 0
       
-      - name: Get changed files
-        id: changed
-        run: |
-          FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -E '\.(ts|tsx|js|jsx|css)$' || true)
-          echo "files=$FILES" >> $GITHUB_OUTPUT
-          echo "Changed files: $FILES"
-      
-      - name: Get diff content
+      - name: Get PR diff
         id: diff
-        if: steps.changed.outputs.files != ''
         run: |
-          DIFF=$(git diff origin/${{ github.base_ref }}...HEAD -- ${{ steps.changed.outputs.files }} | head -c 10000)
-          echo "diff<<EOF" >> $GITHUB_OUTPUT
-          echo "$DIFF" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          # Get the diff
+          DIFF=$(git diff origin/${{ github.base_ref }}...HEAD -- '*.ts' '*.tsx' '*.js' '*.jsx' '*.css' | head -c 8000 || true)
+          # Save to file to avoid escaping issues
+          echo "$DIFF" > /tmp/diff.txt
+          echo "has_diff=$([[ -s /tmp/diff.txt ]] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
       
       - name: AI Code Review
-        if: steps.changed.outputs.files != ''
+        if: steps.diff.outputs.has_diff == 'true'
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const diff = `${{ steps.diff.outputs.diff }}`;
+            const fs = require('fs');
+            const diff = fs.readFileSync('/tmp/diff.txt', 'utf8');
             
             if (!diff.trim()) {
               console.log('No code changes to review');
               return;
             }
             
-            // Call GitHub Models API
-            const response = await fetch('https://models.github.ai/inference/chat/completions', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${process.env.GITHUB_TOKEN}`
-              },
-              body: JSON.stringify({
-                model: 'openai/gpt-4o-mini',
-                messages: [{
-                  role: 'user',
-                  content: `你是一位資深的 Code Reviewer。請審查以下程式碼變更，用繁體中文回覆。
+            const prompt = `你是一位資深的 Code Reviewer。請審查以下程式碼變更，用繁體中文回覆。
 
 重點檢查：
 1. 潛在的 bug 或錯誤
@@ -83,20 +66,49 @@ jobs:
 程式碼變更：
 \`\`\`diff
 ${diff}
-\`\`\``
-                }],
-                max_tokens: 2048
-              })
-            });
-            
-            const result = await response.json();
-            const reviewComment = result.choices?.[0]?.message?.content || '無法完成 Code Review';
-            
-            // Post comment on PR
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: `## 🤖 AI Code Review\n\n${reviewComment}\n\n---\n*Powered by GitHub Models (GPT-4o-mini)*`
-            });
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+\`\`\``;
+
+            // Use GitHub Copilot API (available in GitHub Actions)
+            try {
+              const response = await fetch('https://api.githubcopilot.com/chat/completions', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${{ secrets.GITHUB_TOKEN }}`,
+                  'X-GitHub-Api-Version': '2023-11-01'
+                },
+                body: JSON.stringify({
+                  model: 'gpt-4o',
+                  messages: [{ role: 'user', content: prompt }],
+                  max_tokens: 2048
+                })
+              });
+              
+              if (!response.ok) {
+                throw new Error(`API error: ${response.status}`);
+              }
+              
+              const result = await response.json();
+              const reviewComment = result.choices?.[0]?.message?.content;
+              
+              if (reviewComment) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  body: `## 🤖 AI Code Review\n\n${reviewComment}\n\n---\n*Powered by GitHub Copilot*`
+                });
+              }
+            } catch (error) {
+              // Fallback: just post the diff summary
+              const lines = diff.split('\n');
+              const added = lines.filter(l => l.startsWith('+')).length;
+              const removed = lines.filter(l => l.startsWith('-')).length;
+              
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: `## 📝 PR 變更摘要\n\n- **新增:** ${added} 行\n- **刪除:** ${removed} 行\n\n> AI Review 暫時無法使用，請人工審查。\n\n<details>\n<summary>查看變更內容</summary>\n\n\`\`\`diff\n${diff.substring(0, 3000)}\n\`\`\`\n</details>`
+              });
+            }
