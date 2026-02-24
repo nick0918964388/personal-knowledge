@@ -600,26 +600,29 @@ export default function HomePage() {
               )}
             </div>
             <div className="flex items-center gap-1">
-              {/* Expand/Collapse button */}
+              {/* Expand/Collapse button - 放大/縮小圖示 */}
               <button
                 onClick={() => setViewDialog({ ...viewDialog, expanded: !viewDialog.expanded })}
                 className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                title={viewDialog.expanded ? "縮小" : "放大"}
+                title={viewDialog.expanded ? "縮小" : "最大化"}
               >
                 {viewDialog.expanded ? (
+                  // 縮小圖示 (兩個箭頭向內)
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9L4 4m0 0v4m0-4h4m6 6l5 5m0 0v-4m0 4h-4M9 15l-5 5m0 0h4m-4 0v-4m11-6l5-5m0 0h-4m4 0v4" />
                   </svg>
                 ) : (
+                  // 最大化圖示 (四角向外展開)
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
                   </svg>
                 )}
               </button>
-              {/* Close button */}
+              {/* Close button - X 圖示 */}
               <button
                 onClick={() => setViewDialog({ open: false, memory: null, expanded: false })}
-                className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                className="p-2 rounded-md hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-colors"
+                title="關閉"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -631,7 +634,9 @@ export default function HomePage() {
           {viewDialog.memory && (
             <div className={cn(
               "prose prose-invert max-w-none [&>h1]:text-2xl [&>h1]:font-bold [&>h1]:text-foreground [&>h1]:mb-4 [&>h2]:text-xl [&>h2]:font-semibold [&>h2]:text-foreground [&>h2]:mb-3 [&>h3]:text-lg [&>h3]:font-medium [&>h3]:text-foreground [&>h3]:mb-2 [&>p]:text-foreground/90 [&>p]:mb-3 [&>ul]:list-disc [&>ul]:pl-6 [&>ul]:mb-3 [&>ol]:list-decimal [&>ol]:pl-6 [&>ol]:mb-3 [&>li]:mb-1.5 [&>li]:text-foreground/85 [&>blockquote]:border-l-4 [&>blockquote]:border-blue-500/50 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:text-muted-foreground [&>code]:bg-secondary [&>code]:px-1.5 [&>code]:py-0.5 [&>code]:rounded [&>code]:text-blue-400 [&>code]:text-sm [&>pre]:bg-secondary [&>pre]:p-4 [&>pre]:rounded-lg [&>pre]:overflow-x-auto [&>pre>code]:bg-transparent [&>pre>code]:p-0 [&>hr]:border-border [&>hr]:my-4 [&>a]:text-blue-400 [&>a]:underline [&>a]:hover:text-blue-300 [&_mark]:bg-yellow-500/40 [&_mark]:text-yellow-200 [&_mark]:px-0.5 [&_mark]:rounded [&>table]:w-full [&>table]:border-collapse [&>table>thead>tr>th]:border [&>table>thead>tr>th]:border-border [&>table>thead>tr>th]:p-2 [&>table>thead>tr>th]:bg-secondary/50 [&>table>tbody>tr>td]:border [&>table>tbody>tr>td]:border-border [&>table>tbody>tr>td]:p-2",
-              viewDialog.expanded ? "prose-base" : "prose-sm"
+              viewDialog.expanded 
+                ? "prose-base [&_img]:max-w-full [&_img]:max-h-[70vh] [&_img]:w-auto [&_img]:h-auto [&_img]:mx-auto" 
+                : "prose-sm [&_img]:max-w-md [&_img]:max-h-64"
             )}>
               {searchQuery ? (
                 <HighlightedMarkdown content={viewDialog.memory.content} query={searchQuery} />
