@@ -1,0 +1,102 @@
+name: AI Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      models: read
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Get changed files
+        id: changed
+        run: |
+          FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -E '\.(ts|tsx|js|jsx|css)$' || true)
+          echo "files=$FILES" >> $GITHUB_OUTPUT
+          echo "Changed files: $FILES"
+      
+      - name: Get diff content
+        id: diff
+        if: steps.changed.outputs.files != ''
+        run: |
+          DIFF=$(git diff origin/${{ github.base_ref }}...HEAD -- ${{ steps.changed.outputs.files }} | head -c 10000)
+          echo "diff<<EOF" >> $GITHUB_OUTPUT
+          echo "$DIFF" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: AI Code Review
+        if: steps.changed.outputs.files != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const diff = `${{ steps.diff.outputs.diff }}`;
+            
+            if (!diff.trim()) {
+              console.log('No code changes to review');
+              return;
+            }
+            
+            // Call GitHub Models API
+            const response = await fetch('https://models.github.ai/inference/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${process.env.GITHUB_TOKEN}`
+              },
+              body: JSON.stringify({
+                model: 'openai/gpt-4o-mini',
+                messages: [{
+                  role: 'user',
+                  content: `你是一位資深的 Code Reviewer。請審查以下程式碼變更，用繁體中文回覆。
+
+重點檢查：
+1. 潛在的 bug 或錯誤
+2. 效能問題
+3. 安全性問題
+4. 程式碼品質和可讀性
+5. 最佳實踐建議
+
+請用以下格式回覆：
+## 🔍 Code Review 摘要
+（簡短總結這次變更）
+
+## ✅ 優點
+（列出做得好的地方）
+
+## ⚠️ 需要注意
+（列出潛在問題或建議，如果沒有就寫「看起來不錯！」）
+
+## 💡 建議
+（改進建議，如果沒有就省略此段）
+
+---
+程式碼變更：
+\`\`\`diff
+${diff}
+\`\`\``
+                }],
+                max_tokens: 2048
+              })
+            });
+            
+            const result = await response.json();
+            const reviewComment = result.choices?.[0]?.message?.content || '無法完成 Code Review';
+            
+            // Post comment on PR
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## 🤖 AI Code Review\n\n${reviewComment}\n\n---\n*Powered by GitHub Models (GPT-4o-mini)*`
+            });
+          github-token: ${{ secrets.GITHUB_TOKEN }}
