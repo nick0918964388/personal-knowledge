@@ -1,0 +1,24 @@
+name: Deploy to Harbor
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, harbor]
+    
+    steps:
+      - name: Pull latest code
+        run: |
+          cd /root/memory-vault-ui
+          git pull origin main
+      
+      - name: Build and deploy
+        run: |
+          cd /root/memory-vault-ui
+          docker compose up -d --build
+      
+      - name: Cleanup old images
+        run: |
+          docker image prune -f
